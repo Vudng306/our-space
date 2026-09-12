@@ -1,0 +1,407 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Our Space — sketchbook
+
+   The whole surface is a sheet of warm drawing paper: a faint pencil grid, a
+   little grain, and everything on top drawn rather than printed. Borders wobble
+   the way a hand-drawn box does, headings are handwriting, and the two of you
+   are the only colour that matters.
+
+   Fonts were picked for Vietnamese first — Caveat and Architects Daughter are
+   the usual pencil faces but ship no Vietnamese subset, so the diacritics would
+   have broken. Patrick Hand, Dancing Script and Quicksand all carry it.
+--------------------------------------------------------------------------- */
+
+@theme {
+  /* Paper and graphite */
+  --color-paper: #fbf7ef;
+  --color-paper-deep: #f4ede0;
+  --color-sheet: #fffdf8;
+  --color-grid: #e9e1d3;
+
+  --color-ink: #4a4038;
+  --color-ink-soft: #7b6d61;
+  --color-ink-faint: #a89684;
+
+  /* Pencil strokes */
+  --color-line: #e3d9c8;
+  --color-line-strong: #c9bba5;
+  --color-pencil: #8c7f70;
+
+  /* The one warm accent */
+  --color-rose: #cc6b80;
+  --color-rose-deep: #a44a5f;
+  --color-rose-soft: #fbeaee;
+  --color-rose-line: #eec6d0;
+
+  --color-sage: #7d9070;
+  --color-amber: #d3a05a;
+  --color-danger: #c25a4d;
+  --color-danger-soft: #fceeec;
+
+  --font-sans: var(--font-quicksand), ui-rounded, "Segoe UI", system-ui, sans-serif;
+  --font-hand: var(--font-patrick), var(--font-quicksand), ui-rounded, cursive;
+  --font-script: var(--font-dancing), var(--font-patrick), cursive;
+
+  /* A drawn box never has four equal corners. */
+  --radius-drawn: 14px 22px 16px 20px / 20px 15px 22px 16px;
+  --radius-drawn-alt: 20px 14px 22px 16px / 15px 21px 14px 20px;
+  --radius-pill: 22px 28px 24px 26px / 26px 22px 28px 24px;
+
+  --shadow-paper: 0 1px 1px rgb(74 64 56 / 0.05), 0 8px 18px -14px rgb(74 64 56 / 0.35);
+  --shadow-lift: 0 2px 4px rgb(74 64 56 / 0.07), 0 20px 36px -22px rgb(74 64 56 / 0.45);
+}
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  background: var(--color-paper);
+}
+
+/*
+ * Three layers: the grain, the pencil grid, then the paper itself. The grain is
+ * an inline SVG so there is no image to load.
+ */
+body {
+  min-height: 100dvh;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+  background-color: var(--color-paper);
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)' opacity='0.045'/%3E%3C/svg%3E"),
+    linear-gradient(var(--color-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-grid) 1px, transparent 1px);
+  background-size:
+    160px 160px,
+    30px 30px,
+    30px 30px;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--color-rose-soft);
+  color: var(--color-rose-deep);
+}
+
+:focus-visible {
+  outline: 2px dashed var(--color-rose);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+@layer components {
+  /* --- paper ------------------------------------------------------------ */
+
+  .card {
+    position: relative;
+    background: var(--color-sheet);
+    border: 1.5px solid var(--color-line-strong);
+    border-radius: var(--radius-drawn);
+    box-shadow: var(--shadow-paper);
+  }
+  .card-alt {
+    border-radius: var(--radius-drawn-alt);
+  }
+
+  /* A second, offset outline reads as a pencil line gone over twice. */
+  .sketch::after {
+    content: "";
+    position: absolute;
+    inset: 5px;
+    border: 1px solid var(--color-line-strong);
+    border-radius: var(--radius-drawn-alt);
+    pointer-events: none;
+    opacity: 0.8;
+  }
+
+  /* A torn strip of washi tape, for things pinned to the page. */
+  .tape::before {
+    content: "";
+    position: absolute;
+    top: -11px;
+    left: 50%;
+    width: 86px;
+    height: 22px;
+    transform: translateX(-50%) rotate(-2.2deg);
+    background: rgb(238 198 208 / 0.55);
+    border-left: 1px dashed rgb(164 74 95 / 0.18);
+    border-right: 1px dashed rgb(164 74 95 / 0.18);
+    pointer-events: none;
+  }
+
+  /* --- drawn controls --------------------------------------------------- */
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-family: var(--font-hand);
+    font-size: 1.0625rem;
+    line-height: 1.2;
+    padding: 0.5rem 1.125rem 0.45rem;
+    border: 1.5px solid transparent;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    white-space: nowrap;
+    transition:
+      background-color 150ms ease,
+      color 150ms ease,
+      border-color 150ms ease,
+      transform 150ms ease;
+  }
+  .btn:hover:not(:disabled) {
+    transform: rotate(-0.6deg);
+  }
+  .btn:active:not(:disabled) {
+    transform: translateY(1px) rotate(0.3deg);
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-primary {
+    background: var(--color-rose);
+    border-color: var(--color-rose-deep);
+    color: #fff;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--color-rose-deep);
+  }
+
+  .btn-quiet {
+    background: var(--color-sheet);
+    border-color: var(--color-line-strong);
+    color: var(--color-ink);
+  }
+  .btn-quiet:hover:not(:disabled) {
+    background: var(--color-paper-deep);
+    border-color: var(--color-pencil);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--color-ink-soft);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: rgb(201 187 165 / 0.22);
+    color: var(--color-ink);
+  }
+
+  .btn-danger {
+    background: var(--color-danger);
+    border-color: #a1483d;
+    color: #fff;
+  }
+  .btn-danger:hover:not(:disabled) {
+    filter: brightness(0.94);
+  }
+
+  /* --- writing on the page ---------------------------------------------- */
+
+  .field {
+    width: 100%;
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    color: var(--color-ink);
+    background: var(--color-sheet);
+    border: 1.5px solid var(--color-line-strong);
+    border-radius: var(--radius-drawn);
+    padding: 0.625rem 0.9rem;
+    transition:
+      border-color 150ms ease,
+      box-shadow 150ms ease;
+  }
+  .field::placeholder {
+    color: var(--color-ink-faint);
+    font-style: italic;
+  }
+  .field:focus {
+    outline: none;
+    border-color: var(--color-rose);
+    box-shadow: 0 0 0 3px var(--color-rose-soft);
+  }
+
+  .label {
+    display: block;
+    font-family: var(--font-hand);
+    font-size: 1rem;
+    color: var(--color-ink-soft);
+    margin-bottom: 0.3rem;
+    letter-spacing: 0.01em;
+  }
+
+  /* A line to write on, the way the printed sheet has. */
+  .field-line {
+    width: 100%;
+    font-family: var(--font-hand);
+    font-size: 1.0625rem;
+    color: var(--color-ink);
+    background: transparent;
+    border: 0;
+    border-bottom: 1.5px dashed var(--color-line-strong);
+    border-radius: 0;
+    padding: 0.15rem 0.2rem 0.25rem;
+    transition: border-color 150ms ease;
+  }
+  .field-line::placeholder {
+    color: var(--color-ink-faint);
+    font-style: italic;
+  }
+  .field-line:focus {
+    outline: none;
+    border-bottom-color: var(--color-rose);
+    border-bottom-style: solid;
+  }
+
+  /* A box you tick, drawn rather than native. */
+  .tickbox {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    border: 1.5px solid var(--color-pencil);
+    border-radius: 6px 4px 7px 5px / 5px 7px 4px 6px;
+    background: var(--color-sheet);
+    color: var(--color-rose-deep);
+    transition:
+      background-color 140ms ease,
+      border-color 140ms ease;
+  }
+  .tickbox[data-checked="true"] {
+    background: var(--color-rose-soft);
+    border-color: var(--color-rose);
+  }
+
+  /* Little paper tags. */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-family: var(--font-hand);
+    font-size: 0.9375rem;
+    line-height: 1.1;
+    padding: 0.25rem 0.7rem 0.2rem;
+    color: var(--color-ink-soft);
+    background: var(--color-sheet);
+    border: 1.5px solid var(--color-line-strong);
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    transition:
+      background-color 150ms ease,
+      border-color 150ms ease,
+      transform 150ms ease;
+  }
+  .chip:hover {
+    transform: rotate(-1deg);
+  }
+  .chip-active {
+    background: var(--color-rose-soft);
+    border-color: var(--color-rose-line);
+    color: var(--color-rose-deep);
+  }
+
+  /* --- handwriting ------------------------------------------------------ */
+
+  .display {
+    font-family: var(--font-hand);
+    font-weight: 400;
+    letter-spacing: 0.005em;
+  }
+
+  .script {
+    font-family: var(--font-script);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+
+  /* A wobbly underline, the way you would go over a title twice. */
+  .underlined {
+    position: relative;
+    display: inline-block;
+  }
+  .underlined::after {
+    content: "";
+    position: absolute;
+    left: -2px;
+    right: -2px;
+    bottom: -6px;
+    height: 6px;
+    background: no-repeat center/100% 100%
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 6' preserveAspectRatio='none'%3E%3Cpath d='M1 4.2c18-2.4 38-3.1 58-2.2 20 .9 40 2.3 60 .7' fill='none' stroke='%23eec6d0' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E");
+  }
+
+  /* A dashed pencil rule between sections. */
+  .rule {
+    border: 0;
+    height: 1px;
+    background: repeating-linear-gradient(
+      90deg,
+      var(--color-line-strong) 0 7px,
+      transparent 7px 14px
+    );
+  }
+}
+
+/* --- loading and motion ---------------------------------------------------- */
+
+@keyframes os-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+.skeleton {
+  background: var(--color-paper-deep);
+  border-radius: var(--radius-drawn);
+  animation: os-pulse 1.7s ease-in-out infinite;
+}
+
+@keyframes os-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px) rotate(-0.6deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.fade-up {
+  animation: os-fade-up 300ms ease-out both;
+}
+
+/* Pinned slightly crooked, like something stuck into a scrapbook. */
+.tilt-left {
+  transform: rotate(-0.7deg);
+}
+.tilt-right {
+  transform: rotate(0.6deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .btn:hover:not(:disabled),
+  .chip:hover,
+  .tilt-left,
+  .tilt-right {
+    transform: none;
+  }
+}

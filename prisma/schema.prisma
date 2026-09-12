@@ -1,0 +1,493 @@
+// Our Space — data model
+// Security boundary: every content row hangs off a CoupleSpace (see spec §8).
+// Nothing is ever fetched by id alone; queries are always constrained by the
+// space membership of the authenticated user.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum MemberRole {
+  OWNER
+  MEMBER
+}
+
+enum Mood {
+  HAPPY
+  LOVED
+  CALM
+  TIRED
+  SAD
+  EXCITED
+}
+
+enum PreferenceCategory {
+  FOOD
+  DRINK
+  COLOR
+  FLOWER
+  FASHION
+  GIFT
+  PLACE
+  OTHER
+}
+
+enum Sentiment {
+  LOVE
+  LIKE
+  NEUTRAL
+  DISLIKE
+}
+
+enum Recurrence {
+  NONE
+  YEARLY
+}
+
+enum BucketStatus {
+  WANT_TO_DO
+  PLANNED
+  DONE
+}
+
+// --- the introduction sheet ------------------------------------------------
+
+enum LivingPlace {
+  HOUSE
+  APARTMENT
+}
+
+/// How the day feels, at the moment the sheet was filled in.
+enum SheetMood {
+  ANGRY
+  ANXIOUS
+  CALM
+  CHEERFUL
+  CONFIDENT
+  EMPTY
+  SLEEPLESS
+  SAD
+  TIRED
+  BLISSFUL
+}
+
+enum SheetTrait {
+  LOWKEY
+  OPEN
+  CHANGEABLE
+  HOT_TEMPERED
+  OVERTHINKING
+  PLAYFUL
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String      @id @default(cuid())
+  email         String      @unique
+  passwordHash  String
+  displayName   String
+  avatarMedia   MediaAsset? @relation("UserAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
+  avatarMediaId String?
+
+  /// The "about this person" fields. Unlike the display name and avatar —
+  /// which are account identity and only the owner changes — either member of
+  /// the space can fill these in, so one person can write down what they know
+  /// about the other before that other has ever signed in.
+  birthday   DateTime? @db.Date
+  hometown   String?
+  occupation String?
+  bio        String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  /// Set when the account is closed while a partner is still in the space.
+  /// The row survives so their shared moments keep a stable author, but every
+  /// personal detail is scrubbed and sign-in is refused.
+  deletedAt     DateTime?
+
+  memberships       CoupleMember[]
+  sessions          Session[]
+  passwordResets    PasswordResetToken[]
+  createdSpaces     CoupleSpace[]        @relation("SpaceCreator")
+  createdMoments    Moment[]             @relation("MomentAuthor")
+  invitesCreated    Invite[]             @relation("InviteCreator")
+  invitesAccepted   Invite[]             @relation("InviteAcceptor")
+  preferencesAbout  Preference[]         @relation("PreferenceSubject")
+  preferencesAuthor Preference[]         @relation("PreferenceAuthor")
+  bucketItems       BucketListItem[]     @relation("BucketAuthor")
+  uploadedMedia     MediaAsset[]         @relation("MediaUploader")
+  profileSheet      ProfileSheet?        @relation("SheetOwner")
+  auditEvents       AuditEvent[]
+
+  @@map("users")
+}
+
+/// Opaque, revocable server-side session. The cookie carries a signed JWT that
+/// references this row, so logging out everywhere, or a password change, can
+/// invalidate access immediately.
+model Session {
+  id         String   @id @default(cuid())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  userAgent  String?
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Couple space — the tenant / security boundary
+// ---------------------------------------------------------------------------
+
+model CoupleSpace {
+  id          String    @id @default(cuid())
+  name        String
+  startDate   DateTime? @db.Date
+  createdBy   User      @relation("SpaceCreator", fields: [createdById], references: [id])
+  createdById String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  members        CoupleMember[]
+  invites        Invite[]
+  moments        Moment[]
+  memories       Memory[]
+  preferences    Preference[]
+  importantDates ImportantDate[]
+  bucketItems    BucketListItem[]
+  tags           Tag[]
+  media          MediaAsset[]
+  profileSheets  ProfileSheet[]
+  auditEvents    AuditEvent[]
+
+  @@map("couple_spaces")
+}
+
+model CoupleMember {
+  id       String      @id @default(cuid())
+  space    CoupleSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  spaceId  String
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId   String
+  role     MemberRole  @default(MEMBER)
+  joinedAt DateTime    @default(now())
+
+  @@unique([spaceId, userId])
+  @@index([userId])
+  @@map("couple_members")
+}
+
+/// Invite tokens are never stored in the clear — only a SHA-256 hash.
+model Invite {
+  id           String      @id @default(cuid())
+  space        CoupleSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  spaceId      String
+  tokenHash    String      @unique
+  createdBy    User        @relation("InviteCreator", fields: [createdById], references: [id])
+  createdById  String
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+  acceptedBy   User?       @relation("InviteAcceptor", fields: [acceptedById], references: [id], onDelete: SetNull)
+  acceptedById String?
+  revokedAt    DateTime?
+  createdAt    DateTime    @default(now())
+
+  @@index([spaceId])
+  @@map("invites")
+}
+
+// ---------------------------------------------------------------------------
+// Media
+// ---------------------------------------------------------------------------
+
+/// One row per stored object. Generic (moment photos, memory covers, avatars)
+/// so that upload, authorisation and cleanup logic lives in exactly one place.
+model MediaAsset {
+  id           String      @id @default(cuid())
+  space        CoupleSpace? @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  spaceId      String?
+  uploadedBy   User        @relation("MediaUploader", fields: [uploadedById], references: [id])
+  uploadedById String
+  objectKey    String      @unique
+  thumbKey     String?
+  mimeType     String
+  width        Int
+  height       Int
+  byteSize     Int
+  createdAt    DateTime    @default(now())
+  deletedAt    DateTime?
+
+  momentLinks  MomentMedia[]
+  memoryCovers Memory[]      @relation("MemoryCover")
+  avatarOf     User[]        @relation("UserAvatar")
+
+  @@index([spaceId])
+  @@index([deletedAt])
+  @@map("media_assets")
+}
+
+// ---------------------------------------------------------------------------
+// Moments — the daily loop
+// ---------------------------------------------------------------------------
+
+model Moment {
+  id           String      @id @default(cuid())
+  space        CoupleSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  spaceId      String
+  createdBy    User        @relation("MomentAuthor", fields: [createdById], references: [id])
+  createdById  String
+  caption      String?
+  /// Instant the moment happened, stored in UTC. `timezone` keeps the local day.
+  occurredAt   DateTime
+  timezone     String      @default("UTC")
+  /// Local calendar day derived from occurredAt + timezone, so calendar
+  /// indicators and day grouping need no per-row timezone maths.
+  localDate    DateTime    @db.Date
+  mood         Mood?
+  locationText String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  deletedAt    DateTime?
+
+  media       MomentMedia[]
+  tags        MomentTag[]
+  memoryLinks MemoryMoment[]
+
+  @@index([spaceId, occurredAt(sort: Desc)])
+  @@index([spaceId, localDate])
+  @@index([spaceId, deletedAt])
+  @@map("moments")
+}
+
+model MomentMedia {
+  id        String     @id @default(cuid())
+  moment    Moment     @relation(fields: [momentId], references: [id], onDelete: Cascade)
+  momentId  String
+  media     MediaAsset @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  mediaId   String
+  sortOrder Int        @default(0)
+
+  @@unique([momentId, mediaId])
+  @@index([momentId, sortOrder])
+  @@map("moment_media")
+}
+
+model Tag {
+  id      String      @id @default(cuid())
+  space   CoupleSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  spaceId String
+  name    String
+
+  moments MomentTag[]
+
+  @@unique([spaceId, name])
+  @@map("tags")
+}
+
+model MomentTag {
+  moment   Moment @relation(fields: [momentId], references: [id], onDelete: Cascade)
+  momentId String
+  tag      Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  tagId    String
+
+  @@id([momentId, tagId])
+  @@index([tagId])
+  @@map("moment_tags")
+}
+
+// ---------------------------------------------------------------------------
+// Memories — curated milestones
+// ---------------------------------------------------------------------------
+
+model Memory {
+  id           String      @id @default(cuid())
+  space        CoupleSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  spaceId      String
+  title        String
+  description  String?
+  startDate    DateTime    @db.Date
+  endDate      DateTime?   @db.Date
+  coverMedia   MediaAsset? @relation("MemoryCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
+  coverMediaId String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  deletedAt    DateTime?
+
+  moments MemoryMoment[]
+
+  @@index([spaceId, startDate(sort: Desc)])
+  @@map("memories")
+}
+
+model MemoryMoment {
+  memory   Memory @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+  memoryId String
+  moment   Moment @relation(fields: [momentId], references: [id], onDelete: Cascade)
+  momentId String
+
+  @@id([memoryId, momentId])
+  @@index([momentId])
+  @@map("memory_moments")
+}
+
+// ---------------------------------------------------------------------------
+// About us
+// ---------------------------------------------------------------------------
+
+model Preference {
+  id           String             @id @default(cuid())
+  space        CoupleSpace        @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  spaceId      String
+  /// Whose preference this describes.
+  person       User               @relation("PreferenceSubject", fields: [personUserId], references: [id], onDelete: Cascade)
+  personUserId String
+  createdBy    User               @relation("PreferenceAuthor", fields: [createdById], references: [id])
+  createdById  String
+  category     PreferenceCategory
+  value        String
+  sentiment    Sentiment          @default(LIKE)
+  note         String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@index([spaceId, personUserId])
+  @@map("preferences")
+}
+
+model ImportantDate {
+  id         String      @id @default(cuid())
+  space      CoupleSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  spaceId    String
+  title      String
+  eventDate  DateTime    @db.Date
+  recurrence Recurrence  @default(NONE)
+  note       String?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@index([spaceId, eventDate])
+  @@map("important_dates")
+}
+
+model BucketListItem {
+  id          String       @id @default(cuid())
+  space       CoupleSpace  @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  spaceId     String
+  createdBy   User         @relation("BucketAuthor", fields: [createdById], references: [id])
+  createdById String
+  title       String
+  note        String?
+  status      BucketStatus @default(WANT_TO_DO)
+  targetDate  DateTime?    @db.Date
+  completedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([spaceId, status])
+  @@map("bucket_list_items")
+}
+
+// ---------------------------------------------------------------------------
+// The introduction sheet
+// ---------------------------------------------------------------------------
+
+/// One printed-style sheet per person: the thing you fill in when you arrive.
+///
+/// Finishing your own sheet is what unlocks your partner's — the reciprocity
+/// is the point, so `completedAt` is load-bearing rather than decorative.
+model ProfileSheet {
+  id           String      @id @default(cuid())
+  space        CoupleSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  spaceId      String
+  person       User        @relation("SheetOwner", fields: [personUserId], references: [id], onDelete: Cascade)
+  /// One sheet each; the uniqueness is enforced here rather than in code.
+  personUserId String      @unique
+
+  // Tớ là
+  nickname String?
+
+  // Nơi tớ sống
+  livingPlace LivingPlace?
+  livingCity  String?
+
+  // Sinh nhật — the date lives on the user; the sign is derived from it.
+
+  // Sở thích
+  favFood      String?
+  favDrink     String?
+  favColor     String?
+  favAnimal    String?
+  favNumber    String?
+  favSport     String?
+  favMusic     String?
+  specialHobby String?
+  idol         String?
+  favTimeOfDay String?
+
+  // Tâm trạng hiện tại — one of ten
+  mood SheetMood?
+
+  // Tính cách — any number of six
+  traits SheetTrait[]
+
+  // Ước mơ
+  dream String?
+
+  /// Tự chấm điểm bản thân, 0–100.
+  selfScore Int?
+
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([spaceId])
+  @@map("profile_sheets")
+}
+
+// ---------------------------------------------------------------------------
+// Audit — destructive actions leave a trail (spec §6.4)
+// ---------------------------------------------------------------------------
+
+model AuditEvent {
+  id          String       @id @default(cuid())
+  space       CoupleSpace? @relation(fields: [spaceId], references: [id], onDelete: SetNull)
+  spaceId     String?
+  actor       User?        @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  actorUserId String?
+  action      String
+  targetType  String?
+  targetId    String?
+  metadata    Json?
+  createdAt   DateTime     @default(now())
+
+  @@index([spaceId, createdAt])
+  @@map("audit_events")
+}

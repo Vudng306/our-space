@@ -1,0 +1,8 @@
+# Local-only bits that must never reach the deployment.
+.env
+.env*.local
+storage/
+docker-compose.yml
+.claude/
+generated/
+.next/
