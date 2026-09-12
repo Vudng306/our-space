@@ -148,9 +148,10 @@ photograph.
 
 ## Deploying
 
-See [DEPLOY.md](DEPLOY.md). The short version: Vercel + a managed Postgres +
-an S3-compatible bucket, all on free tiers, configured entirely through
-environment variables.
+See [DEPLOY.md](DEPLOY.md). The short version: Netlify or Vercel + a managed
+Postgres (Neon) + optionally an S3-compatible bucket, all on free tiers,
+configured entirely through environment variables. Nothing in the code is tied
+to a host.
 
 ## Notes on the spec
 

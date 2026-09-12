@@ -1,0 +1,23 @@
+# Netlify build settings.
+#
+# Netlify detects Next.js and applies its own runtime, so there is no plugin to
+# list here — only the things it cannot guess: the Node version, and the fact
+# that our build step also applies database migrations.
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  # Next 16 and Prisma 7 both need Node 20+; 22 is the current LTS.
+  NODE_VERSION = "22"
+  # The sheets and settings pages are per-request, so nothing is prerendered
+  # that would need a build-time secret beyond DATABASE_URL and AUTH_SECRET.
+  NEXT_TELEMETRY_DISABLED = "1"
+
+# Everything here is private to two people — keep it out of search engines
+# entirely, the same way the app's own metadata does.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"

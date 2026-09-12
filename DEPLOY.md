@@ -130,6 +130,35 @@ SMTP_FROM="Our Space <no-reply@yourdomain.com>"
 
 ---
 
+## Netlify
+
+Netlify's free Starter plan does not ask for a card, and it has its own Next.js
+runtime, so the app needs no code changes — [`netlify.toml`](netlify.toml)
+carries the whole configuration.
+
+1. [app.netlify.com](https://app.netlify.com) → **Add new site** → **Import an
+   existing project** → GitHub → pick the repository.
+2. Leave the build command and publish directory alone; `netlify.toml` sets
+   them, and Netlify detects Next.js on its own.
+3. Before the first deploy, open **Site configuration → Environment variables**
+   and add:
+
+   ```bash
+   DATABASE_URL="postgresql://…-pooler…?sslmode=require"
+   AUTH_SECRET="<48 random bytes, base64>"
+   ```
+
+4. Deploy, then copy the site address and add it as `NEXT_PUBLIC_APP_URL`, and
+   redeploy. Invite links are built from that value, so until it is set they
+   will point at `localhost`.
+
+The build runs `prisma migrate deploy`, so `DATABASE_URL` has to be present
+before the first build or it stops there — deliberately, rather than starting
+an app with no tables.
+
+Profile photos still need an S3-compatible bucket, exactly as above; without
+one everything works except uploading an avatar.
+
 ## Other providers
 
 ### Supabase (one account for both database and storage)
