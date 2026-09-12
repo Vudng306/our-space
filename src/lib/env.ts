@@ -53,6 +53,8 @@ function load() {
     s3ForcePathStyle: e.S3_FORCE_PATH_STYLE !== "false",
     maxUploadBytes: e.MAX_UPLOAD_MB * 1024 * 1024,
     appUrl: e.NEXT_PUBLIC_APP_URL.replace(/\/$/, ""),
+    /// False when the default was used, so the request can answer instead.
+    appUrlConfigured: Boolean(process.env.NEXT_PUBLIC_APP_URL),
   };
 }
 

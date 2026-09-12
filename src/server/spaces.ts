@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { badRequest, conflict, forbidden, notFound } from "@/lib/api";
 import { dateFromKey } from "@/lib/datetime";
-import { env } from "@/lib/env";
+import { resolveAppUrl } from "@/lib/appUrl";
 import { generateToken, hashToken } from "@/lib/password";
 import type { SpaceContext } from "@/lib/space";
 import type { SessionUser } from "@/lib/session";
@@ -85,7 +85,8 @@ export async function createInvite(ctx: SpaceContext): Promise<CreatedInvite> {
     },
   });
 
-  return { id: invite.id, token, url: `${env.appUrl}/invite/${token}`, expiresAt };
+  const appUrl = await resolveAppUrl();
+  return { id: invite.id, token, url: `${appUrl}/invite/${token}`, expiresAt };
 }
 
 export async function listInvites(ctx: SpaceContext) {

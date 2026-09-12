@@ -3,6 +3,7 @@ import { badRequest, conflict, forbidden, notFound, unauthorized } from "@/lib/a
 import { dateFromKey } from "@/lib/datetime";
 import { isMemberOfSpace, type SpaceContext } from "@/lib/space";
 import { env } from "@/lib/env";
+import { resolveAppUrl } from "@/lib/appUrl";
 import {
   burnPasswordTime,
   generateToken,
@@ -165,7 +166,7 @@ export async function requestPasswordReset(input: unknown): Promise<{ devLink?: 
     },
   });
 
-  const link = `${env.appUrl}/reset-password/${token}`;
+  const link = `${await resolveAppUrl()}/reset-password/${token}`;
   if (env.SMTP_URL) {
     await sendResetEmail(user.email, link);
   } else {
